@@ -1,5 +1,5 @@
 # python-tests
-Play with pyton
+Play with python
 
 
 
