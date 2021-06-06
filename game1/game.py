@@ -4,6 +4,7 @@ import tkinter as tk
 import winsound
 from os import walk
 
+
 class Game(tk.Tk):
     bubbles_count = 6
     pop_radius = 100
@@ -23,27 +24,29 @@ class Game(tk.Tk):
         self.beep_duration = 90
         self.ca.create_image(self.width / 2, self.height / 2, image=self.bg)
         self.bubbles = []
-        self.plane = {}
+        self.plane = None
         self.stats = {}
         self.stat_text_ids = {}
         self.story_visible = False
         self.story_ids = []
-        self.bomb = {}
+        self.bomb = None
         self.launched_bombs = 0
         self.popped_bubbles = 0
         self.sprites = self.load_sprites()
 
+        # pripravit statistiky
         for i in range(Game.bubbles_count + 1):
             self.stats[i] = 0
-            self.stat_text_ids[i] = self.ca.create_text(40, Game.height - i * 30 - 50, text=f"{i} : 0", font="arial 20", fill="navy")
+            self.stat_text_ids[i] = self.ca.create_text(40, Game.height - i * 30 - 50, text=f"{i} : 0", font="arial 20",
+                                                        fill="navy")
 
+        # zobrazit score board
         SpriteBase(self.ca, Game.width / 2, Game.height - 50, self.sprites["pane"], 0, 0, 0, 0, None)
         self.score_id = self.ca.create_text(Game.width / 2, Game.height - 40, text="0.0%", font="arial 30")
         self.story()
 
-        self.add_plane()
         self.ca.bind("<1>", self.mouse_press)
-        self.ca.after(500, self.game_loop)
+        self.ca.after(1000, self.game_loop)
 
     def game_loop(self):
         if len(self.bubbles) < Game.bubbles_count:
@@ -55,6 +58,7 @@ class Game(tk.Tk):
     def mouse_press(self, event):
         if self.story_visible:
             self.hide_story()
+            return
         if self.plane and self.plane.is_live:
             if self.plane.has_bomb:
                 self.launch_plane_bomb()
@@ -65,22 +69,20 @@ class Game(tk.Tk):
                                  self.sprite_event)
 
                 # ocekovat, ci nevybuchli bubliny
-                todel = []
-                any_pop = False
+                to_del = []
                 for bub in self.bubbles:
                     dist = math.sqrt((bub.x - self.bomb.x) ** 2 + (bub.y - self.bomb.y) ** 2)
                     if dist <= Game.pop_radius:
                         bub.pop()
                         self.popped_bubbles += 1
-                        todel.append(bub)
-                        any_pop = True
-                cnt = len(todel)
+                        to_del.append(bub)
+
+                cnt = len(to_del)
                 self.stats[cnt] += 1
                 self.update_stat()
-                if cnt > 0:
-                    for bub in todel:
+                if cnt:
+                    for bub in to_del:
                         self.bubbles.remove(bub)
-                if any_pop:
                     winsound.Beep(1000, self.beep_duration)
                     self.update_score()
                 else:
@@ -90,10 +92,9 @@ class Game(tk.Tk):
         for i in range(Game.bubbles_count + 1):
             self.ca.itemconfig(self.stat_text_ids[i], text=f"{i} : {self.stats[i]}")
 
-
     def update_score(self):
         sco = self.popped_bubbles / self.launched_bombs * 100.0
-        self.ca.itemconfig(self.score_id, text=f"{sco:.1f}%")
+        self.ca.itemconfig(self.score_id, text=f"{sco:.2f}%")
 
     def launch_plane_bomb(self):
         self.plane.has_bomb = False
@@ -102,14 +103,8 @@ class Game(tk.Tk):
                                self.sprite_event)
         self.update_score()
 
-    def init_bubles(self):
-        self.add_bubble()
-        self.add_bubble()
-        self.add_bubble()
-
     def add_plane(self):
         y = random.randrange(40, int(Game.height * 0.4))
-
         if random.randint(0, 1):
             spr = self.sprites["plaL"]
             plane = random.randrange(spr.count)
@@ -128,7 +123,6 @@ class Game(tk.Tk):
     def sprite_event(self, type, name, obj):
         if type == 'out' and name == 'plane':
             self.plane = None
-            # self.add_plane()
 
     def load_sprites(self):
         return {"bub0": SpriteLoader("bubble_pop_one", 5),
@@ -148,14 +142,13 @@ class Game(tk.Tk):
         file.close()
         y = 150
         for line in lines:
-            id = self.ca.create_text(Game.width / 2, y, text=line, font="arial 30", fill="navy")
             y += 40
-            self.story_ids.append(id)
+            self.story_ids.append(self.ca.create_text(Game.width / 2, y, text=line, font="arial 30", fill="navy"))
 
     def hide_story(self):
         self.story_visible = False
-        for id in self.story_ids:
-            self.ca.delete(id)
+        for i in self.story_ids:
+            self.ca.delete(i)
 
 
 class SpriteBase:
@@ -249,14 +242,15 @@ class PlaneSprite(SpriteBase):
 
 
 class BubbleSprite(SpriteBase):
+    border_limit = 100
+
     def __init__(self, canvas, x, y, sprites, ticks, dx, dy, init_frame, event):
         self.dx = random.randrange(10)
-        self.border_limit = 100
         self.dy = random.randrange(10)
         self.duration = random.randrange(20, 40)
         self.pop_state = False
-        x = random.randint(self.border_limit, Game.width - self.border_limit)
-        y = random.randint(self.border_limit, Game.height - self.border_limit)
+        x = random.randint(BubbleSprite.border_limit, Game.width - BubbleSprite.border_limit)
+        y = random.randint(BubbleSprite.border_limit, Game.height - BubbleSprite.border_limit)
         super().__init__(canvas, x, y, sprites, ticks, self.dx, self.dy, init_frame, event)
 
     def update_dx_dy(self):
@@ -270,13 +264,13 @@ class BubbleSprite(SpriteBase):
             self.duration -= 1
 
         x, y = self.ca.coords(self.id)
-        if x < self.border_limit:
+        if x < BubbleSprite.border_limit:
             self.dx = abs(self.dx)
-        if y < self.border_limit:
+        if y < BubbleSprite.border_limit:
             self.dy = abs(self.dy)
-        if x + self.sprites.width > Game.width - self.border_limit:
+        if x + self.sprites.width > Game.width - BubbleSprite.border_limit:
             self.dx = -abs(self.dx)
-        if y + self.sprites.height > Game.height - self.border_limit:
+        if y + self.sprites.height > Game.height - BubbleSprite.border_limit:
             self.dy = -abs(self.dy)
 
     def next_frame_idx(self):
